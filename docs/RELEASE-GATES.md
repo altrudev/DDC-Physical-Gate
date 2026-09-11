@@ -10,9 +10,13 @@ Real-hardware support is prohibited until all applicable gates are satisfied.
 - robust clock/freshness model;
 - durable replay/idempotency handling;
 - crash-recovery and unknown-outcome reconciliation;
-- actual DDC Action Receipt interoperability;
+- canonical DDC Action Receipt interoperability against the accepted exact source pin, including independent authority/decision/execution trust;
 - explicit policy/profile versioning;
 - adversarial and malformed-input testing.
+
+## Current DDCAR status
+
+Canonical DDCAR interoperability is accepted only for the simulation/shadow reference path. This does not satisfy the real-hardware release gate by itself. Real hardware still requires independent operational authority, trusted time, device-specific validation, external safety systems, and postcondition evidence.
 
 ## Required before supervised hardware trial
 - read-only/shadow deployment completed first;

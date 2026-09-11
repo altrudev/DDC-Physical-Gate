@@ -4,7 +4,7 @@ from physical_gate.core import fixture, digest, keys, PROFILE
 from physical_gate.trust import sign_authority, sign_state
 from physical_gate.secure_gate import SecureGate
 from physical_gate.adapters import from_mcp, from_mhs, AdapterError
-from physical_gate.ddcar import make_unsealed_receipt, construction_inputs, DDCAR_PHYSICAL_SCOPE_MIN_REVISION
+from physical_gate.ddcar import make_unsealed_receipt, construction_inputs, DDCAR_PHYSICAL_SCOPE_MIN_REVISION, canonical_authority_scope, physical_scope
 
 NOW=1000000
 
@@ -101,20 +101,22 @@ def test_mhs_adapter_is_explicitly_not_official_schema():
     req={'protocol':'mhs-v1','request_id':e['id']}
     with pytest.raises(AdapterError): from_mhs(req,s,PROFILE)
 
-def test_ddcar_construction_inputs_target_physical_scope_verifier():
+def test_ddcar_construction_inputs_separate_canonical_and_physical_scope():
     e,s,a,st,at,stt=trusted_case()
     d=SecureGate(authority_trust=at,state_trust=stt).evaluate(e,s,NOW,authority_proof=a,state_proof=st)
     mapped=construction_inputs(envelope=e,decision=d,state_signed=st,profile=PROFILE)
     r=mapped['receipt']
-    assert mapped['interop']['physical_scope_supported'] is True
-    assert mapped['interop']['minimum_verifier_revision']==DDCAR_PHYSICAL_SCOPE_MIN_REVISION
+    assert mapped['interop']['accepted_ddcar_revision']==DDCAR_PHYSICAL_SCOPE_MIN_REVISION
     assert mapped['interop']['requires_ddcar_signing'] is True
+    assert mapped['interop']['canonical_ddcar_scope']==canonical_authority_scope(e)
+    assert mapped['interop']['physical_scope']==physical_scope(e,PROFILE)
+    assert mapped['interop']['physical_scope_enforced_by']=='ddc-physical-gate'
     assert r['decision']=='ALLOW'
     assert r['operation']=='move'
     assert r['evidence'][0]['type']=='physical-state'
-    assert r['authority']['scope']['tool_id']==e['device']
-    assert r['authority']['scope']['frame']=='sim-base'
-    assert r['authority']['scope']['max_speed']==str(PROFILE['max_speed_mm_s'])
+    assert r['authority']['scope']=={'tool_id':e['device'],'operation':'move'}
+    assert mapped['interop']['physical_scope']['frame']=='sim-base'
+    assert mapped['interop']['physical_scope']['max_speed']==str(PROFILE['max_speed_mm_s'])
 
 def test_ddcar_review_mapping():
     e,s,a,st,at,stt=trusted_case()
