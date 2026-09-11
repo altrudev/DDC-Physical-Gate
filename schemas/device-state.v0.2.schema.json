@@ -1,0 +1,18 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://github.com/altrudev/DDC-Physical-Gate/schemas/device-state.v0.2.schema.json",
+  "title":"DDC Physical Gate Device State v0.2",
+  "type":"object",
+  "additionalProperties":true,
+  "required":["version","device","profile_digest","generation","observed_ms","clock_uncertainty_ms","mode","sensors"],
+  "properties":{
+    "version":{"const":"ddc.physical-gate.v0.1"},
+    "device":{"type":"string","minLength":1},
+    "profile_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "generation":{"type":"integer","minimum":0},
+    "observed_ms":{"type":"integer","minimum":0},
+    "clock_uncertainty_ms":{"type":"number","minimum":0},
+    "mode":{"type":"string","minLength":1},
+    "sensors":{"type":"object"}
+  }
+}
