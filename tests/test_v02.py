@@ -4,7 +4,7 @@ from physical_gate.core import fixture, digest, keys, PROFILE
 from physical_gate.trust import sign_authority, sign_state
 from physical_gate.secure_gate import SecureGate
 from physical_gate.adapters import from_mcp, from_mhs, AdapterError
-from physical_gate.ddcar import make_unsealed_receipt
+from physical_gate.ddcar import make_unsealed_receipt, construction_inputs, DDCAR_PHYSICAL_SCOPE_MIN_REVISION
 
 NOW=1000000
 
@@ -101,17 +101,20 @@ def test_mhs_adapter_is_explicitly_not_official_schema():
     req={'protocol':'mhs-v1','request_id':e['id']}
     with pytest.raises(AdapterError): from_mhs(req,s,PROFILE)
 
-def test_ddcar_mapping_keeps_status_outside_receipt():
+def test_ddcar_construction_inputs_target_physical_scope_verifier():
     e,s,a,st,at,stt=trusted_case()
     d=SecureGate(authority_trust=at,state_trust=stt).evaluate(e,s,NOW,authority_proof=a,state_proof=st)
-    mapped=make_unsealed_receipt(envelope=e,decision=d,authority_signed=a,state_signed=st)
+    mapped=construction_inputs(envelope=e,decision=d,state_signed=st,profile=PROFILE)
     r=mapped['receipt']
-    assert '_interop_status' not in r
-    assert mapped['interop']['structural_mapping'] is True
-    assert mapped['interop']['core_verifier_physical_scope'] is False
+    assert mapped['interop']['physical_scope_supported'] is True
+    assert mapped['interop']['minimum_verifier_revision']==DDCAR_PHYSICAL_SCOPE_MIN_REVISION
+    assert mapped['interop']['requires_ddcar_signing'] is True
     assert r['decision']=='ALLOW'
-    assert r['requested_action']['operation']=='move'
+    assert r['operation']=='move'
     assert r['evidence'][0]['type']=='physical-state'
+    assert r['authority']['scope']['tool_id']==e['device']
+    assert r['authority']['scope']['frame']=='sim-base'
+    assert r['authority']['scope']['max_speed']==str(PROFILE['max_speed_mm_s'])
 
 def test_ddcar_review_mapping():
     e,s,a,st,at,stt=trusted_case()
