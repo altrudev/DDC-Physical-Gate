@@ -2,7 +2,7 @@
 
 Independent, vendor-neutral pre-execution assurance for AI-to-physical-device commands.
 
-**Status:** simulation-only research reference. No real-hardware transport is included or enabled.
+**Status:** v0.2 simulation-only research reference. No real-hardware transport is included or enabled.
 
 DDC Physical Gate evaluates whether an exact proposed physical action should be allowed to cross the hardware boundary given the current observed state, authority, device profile, deterministic physical constraints, uncertainty, sequence, and policy.
 
@@ -24,7 +24,11 @@ The public reference separates:
 3. exact action and state commitments;
 4. independent executor re-checking;
 5. signed decision and simulated execution evidence;
-6. replay protection.
+6. replay protection;
+7. signed human-authority grants;
+8. signed device-state attestations;
+9. independent cryptographic revalidation at dispatch;
+10. simulation-only MCP and MHS-shaped adapter normalization.
 
 The proprietary DDC assurance methodology is not included.
 
@@ -88,3 +92,14 @@ See `docs/ARCHITECTURE.md`, `docs/INTEGRATION.md`, and `docs/RELEASE-GATES.md`.
 ## Critical limitation
 
 Do not connect this repository directly to robots, laboratory instruments, manufacturing equipment, vehicles, or other physical systems. Real hardware requires trusted device identity, attested sensor provenance, validated trajectory or process constraints, site-specific safety analysis, certified safety controls where applicable, and independent verification.
+
+
+## v0.2 trust boundary
+
+The v0.2 path adds `SecureGate` and `SecureExecutor`. Human authority is signed and bound to the exact agent, device, nonce, profile, action digest and expiry. Device state is separately signed and bound to the exact snapshot digest, device generation, observation time, profile and evidence source.
+
+The secure executor independently revalidates both proofs before simulated dispatch. This prevents the admission layer from becoming the sole trust decision point.
+
+The repository also includes simulation-only normalizers for MCP-shaped and MHS-research-shaped requests. The MHS adapter is deliberately labeled as a research compatibility shape, not an official Anthropic schema.
+
+DDC Action Receipt v0.1 structural mapping is implemented, but its current core verifier does not yet define physical-device authority scopes. The repository reports this as an explicit interoperability limitation rather than claiming full verifier compatibility.
