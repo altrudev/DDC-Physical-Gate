@@ -2,7 +2,7 @@ import json, hashlib
 from pathlib import Path
 import pytest
 from physical_gate.core import keys, PROFILE
-from physical_gate.interop import deterministic_snapshot, deterministic_envelope
+from physical_gate.interop import deterministic_snapshot, deterministic_envelope, build_vector
 from physical_gate.ddcar import action, physical_scope
 from physical_gate.multi_device import LabSimulator, WorkflowError
 
@@ -51,3 +51,15 @@ def test_unknown_cross_device_operation_fails_closed():
     sim=LabSimulator()
     with pytest.raises(WorkflowError,match='UNSUPPORTED_OPERATION'):
         sim.execute({'device':'reader','operation':'disable_interlock','parameters':{}})
+
+
+def test_physical_gate_builds_allowing_ddcar_vector():
+    import hashlib
+    ak,apub=keys(); sk,spub=keys()
+    atrust={hashlib.sha256(bytes.fromhex(apub)).hexdigest():apub}
+    strust={hashlib.sha256(bytes.fromhex(spub)).hexdigest():spub}
+    built=build_vector(ak,sk,atrust,strust)
+    assert built['decision']['disposition']=='ALLOW'
+    assert built['ddcar']['receipt']['decision']=='ALLOW'
+    assert built['ddcar']['receipt']['operation']=='move'
+    assert built['ddcar']['authority_grant']['action_digest'].startswith('sha256:')
