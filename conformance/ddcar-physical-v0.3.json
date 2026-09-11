@@ -1,0 +1,35 @@
+{
+  "profile_digest": "067d37e10958f28f84ae708c5dd779c894f4544082bb4f3344be9a47760d611a",
+  "snapshot_digest": "b37ca6bea7f96606e0040024b8e8658ce6d92dd0402d60edeb796369346c9528",
+  "action": {
+    "tool": {
+      "kind": "physical-gate",
+      "id": "sim:arm-01",
+      "version": "0.2",
+      "schema_digest": "sha256:a2086eb45c0fe206c229774ec0f6decbde1bf8ad96a034ef9708d9527aa7df66"
+    },
+    "operation": "move",
+    "parameters": {
+      "target": {
+        "x": {"value": "10", "unit": "mm", "frame": "sim-base", "uncertainty_mm": "0"},
+        "y": {"value": "20", "unit": "mm", "frame": "sim-base", "uncertainty_mm": "0"},
+        "z": {"value": "100", "unit": "mm", "frame": "sim-base", "uncertainty_mm": "0"}
+      },
+      "speed": {"value": "20", "unit": "mm/s"},
+      "force": {"value": "5", "unit": "N"}
+    }
+  },
+  "scope": {
+    "tool_id": "sim:arm-01",
+    "operation": "move",
+    "frame": "sim-base",
+    "workspace": {"x": ["-500", "500"], "y": ["-500", "500"], "z": ["0", "500"]},
+    "max_speed": "100",
+    "max_force": "20"
+  },
+  "agent": "sim:agent",
+  "device": "sim:arm-01",
+  "nonce": "0123456789abcdef0123456789abcdef",
+  "issued_ms": 1000000,
+  "expires_ms": 1001000
+}
