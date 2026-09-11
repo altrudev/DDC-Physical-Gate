@@ -3,7 +3,7 @@ import hashlib
 from .core import sign, verify, digest
 
 AUTHORITY_VERSION='ddc.physical-authority.v0.2'
-STATE_VERSION='ddc.physical-state-attestation.v0.2'
+STATE_VERSION='ddc.physical-state-attestation.v0.4'
 
 def key_id_from_public_hex(public_hex):
     return hashlib.sha256(bytes.fromhex(public_hex)).hexdigest()
@@ -16,9 +16,10 @@ def authority_grant(*,principal,agent,device,operations,action_digest,issued_ms,
 def sign_authority(private_key, **kwargs):
     return sign(private_key, authority_grant(**kwargs))
 
-def verify_authority(signed, trusted, *, envelope, now_ms):
+def verify_authority(signed, trusted, *, envelope, now_ms, revoked_grants=None):
     if not verify(signed,trusted): return False,'AUTHORITY_SIGNATURE'
     g=signed.get('payload',{})
+    if revoked_grants is not None and digest(g) in revoked_grants: return False,'AUTHORITY_REVOKED'
     if g.get('version')!=AUTHORITY_VERSION: return False,'AUTHORITY_VERSION'
     if g.get('agent')!=envelope.get('agent') or g.get('device')!=envelope.get('device'): return False,'AUTHORITY_BINDING'
     if envelope.get('action',{}).get('operation') not in g.get('operations',[]): return False,'AUTHORITY_OPERATION'
@@ -30,14 +31,16 @@ def verify_authority(signed, trusted, *, envelope, now_ms):
     except TypeError: return False,'AUTHORITY_TIME'
     return True,None
 
-def state_attestation(*,snapshot_digest,device,generation,observed_ms,valid_until_ms,profile_digest,source):
+def state_attestation(*,snapshot_digest,device,generation,observed_ms,valid_until_ms,profile_digest,source,device_epoch='sim-epoch-1',predecessor_state_digest=None):
     return {'version':STATE_VERSION,'snapshot_digest':snapshot_digest,'device':device,'generation':generation,
-            'observed_ms':observed_ms,'valid_until_ms':valid_until_ms,'profile_digest':profile_digest,'source':source}
+            'observed_ms':observed_ms,'valid_until_ms':valid_until_ms,'profile_digest':profile_digest,'source':source,
+            'device_epoch':device_epoch,'predecessor_state_digest':predecessor_state_digest}
 
-def sign_state(private_key, snapshot, *, valid_until_ms, source):
+def sign_state(private_key, snapshot, *, valid_until_ms, source, device_epoch='sim-epoch-1', predecessor_state_digest=None):
     return sign(private_key,state_attestation(snapshot_digest=digest(snapshot),device=snapshot['device'],
         generation=snapshot['generation'],observed_ms=snapshot['observed_ms'],valid_until_ms=valid_until_ms,
-        profile_digest=snapshot['profile_digest'],source=source))
+        profile_digest=snapshot['profile_digest'],source=source,device_epoch=device_epoch,
+        predecessor_state_digest=predecessor_state_digest))
 
 def verify_state(signed,trusted,*,snapshot,now_ms):
     if not verify(signed,trusted): return False,'STATE_SIGNATURE'
