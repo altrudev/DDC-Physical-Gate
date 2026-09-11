@@ -9,6 +9,7 @@ requires-python = ">=3.10"
 dependencies = ["cryptography>=42"]
 [project.optional-dependencies]
 test = ["pytest>=8"]
+ddcar = ["ddc-action-receipt @ git+https://github.com/altrudev/DDC-Action-Receipt.git@d746e57b6f6a0c4ff6694a1a1ff6954e64f5ef39"]
 [project.scripts]
 ddc-physical-gate = "physical_gate.cli:main"
 [tool.setuptools.packages.find]
