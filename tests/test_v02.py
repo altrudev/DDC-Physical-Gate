@@ -23,7 +23,7 @@ def test_secure_gate_allows_valid_signed_evidence():
     e,s,a,st,at,stt=trusted_case()
     r=SecureGate(authority_trust=at,state_trust=stt).evaluate(e,s,NOW,authority_proof=a,state_proof=st)
     assert r['disposition']=='ALLOW'
-    assert r['trust_profile']=='cryptographic-v0.2'
+    assert r['trust_profile']=='cryptographic-v0.4'
 
 @pytest.mark.parametrize('which',['authority','state'])
 def test_secure_gate_blocks_untrusted_signatures(which):

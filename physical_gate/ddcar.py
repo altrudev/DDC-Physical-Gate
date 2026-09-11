@@ -1,17 +1,16 @@
-"""DDC Action Receipt interoperability for Physical Gate.
+"""DDC Action Receipt interoperability for Physical Gate v0.4.
 
 Physical Gate remains authoritative for physical preconditions in this simulation-only
 reference. DDCAR supplies a portable, independently verifiable action-evidence envelope.
-The two signature domains are intentionally distinct.
+The Physical Gate and DDCAR signature domains remain intentionally distinct.
 """
 from datetime import datetime, timezone
 
-from .core import canonical, digest
+from .core import canonical, digest, verify
 from .trust import verify_authority, verify_state
 
 SPEC='https://github.com/altrudev/DDC-Action-Receipt/blob/main/spec/DDC-ACTION-RECEIPT-v0.1.md'
 DDCAR_ACCEPTED_REVISION='d746e57b6f6a0c4ff6694a1a1ff6954e64f5ef39'
-# Compatibility alias retained for callers that used the older constant.
 DDCAR_PHYSICAL_SCOPE_MIN_REVISION=DDCAR_ACCEPTED_REVISION
 
 
@@ -31,16 +30,12 @@ def action(envelope):
 
 
 def canonical_authority_scope(envelope):
-    """Scope vocabulary supported directly by the DDCAR v0.1 reference verifier.
-
-    Rich physical limits remain independently enforced by Physical Gate and are bound
-    through the exact action digest, profile/policy digest and physical evidence.
-    """
+    """Scope vocabulary supported directly by the DDCAR v0.1 reference verifier."""
     return {'tool_id':envelope['device'],'operation':envelope['action']['operation']}
 
 
 def physical_scope(envelope,profile):
-    """Physical Gate policy scope; this is NOT silently inserted into DDCAR v0.1 scope."""
+    """Physical Gate policy scope; not silently inserted into DDCAR v0.1 scope."""
     scope={'tool_id':envelope['device'],'operation':envelope['action']['operation']}
     if envelope['action']['operation']=='move':
         scope.update({'frame':'sim-base',
@@ -64,12 +59,7 @@ def _checks(decision):
 
 
 def construction_inputs(*,envelope,decision,state_signed,profile,principal='human:owner',issuer='ddc-physical-gate'):
-    """Return dependency-free structural inputs for DDCAR construction.
-
-    This preview uses only the DDCAR v0.1-supported authority scope. The richer
-    Physical Gate policy scope is exposed separately in interop metadata.
-    Cryptographic signing must use build_decision_receipt(), not these preview fields.
-    """
+    """Dependency-free structural preview. Cryptographic signing uses build_decision_receipt()."""
     a=action(envelope); issued=decision['evaluated_ms']; expiry=min(envelope['expires_ms'],issued+1000)
     checks,assurance=_checks(decision)
     anomalies=[{'code':f['code'],'severity':'high' if f['disposition']=='BLOCK' else 'medium'}
@@ -85,11 +75,11 @@ def construction_inputs(*,envelope,decision,state_signed,profile,principal='huma
           'observed_at':iso_ms(state_signed['payload']['observed_ms']),
           'valid_until':iso_ms(state_signed['payload']['valid_until_ms']),
           'source':state_signed['payload']['source']}],
-        'policy':{'id':'ddc-physical-gate','version':'0.3','digest':sha({'profile':envelope['profile_digest']})},
+        'policy':{'id':'ddc-physical-gate','version':'0.4','digest':sha({'profile':envelope['profile_digest']})},
         'prerequisites':checks,'permissions':checks,'assurance':assurance,'anomalies':anomalies,
         'risk':{'class':'high' if envelope.get('consequence',0)>=3 else 'medium'},
         'decision':decision_name(decision['disposition']),
-        'issuer':{'id':issuer,'kind':'assurance-gate','version':'0.3'},
+        'issuer':{'id':issuer,'kind':'assurance-gate','version':'0.4'},
         'expires_at':iso_ms(expiry),'issued_at':iso_ms(issued)
       },
       'authority_grant':{
@@ -107,28 +97,40 @@ def construction_inputs(*,envelope,decision,state_signed,profile,principal='huma
     }
 
 
-def build_decision_receipt(*,envelope,snapshot,decision,physical_authority_signed,state_signed,
+def build_decision_receipt(*,envelope,snapshot,physical_decision_signed,physical_decision_trust,
+                           physical_authority_signed,state_signed,
                            physical_authority_trust,state_trust,ddcar_trust,
                            ddcar_authority_private,authority_key_id,
-                           ddcar_decision_private,decision_key_id,
-                           profile,principal='human:owner',issuer='ddc-physical-gate'):
-    """Build, seal and self-verify a canonical DDCAR decision receipt.
-
-    Physical authority/state proofs are verified first. DDCAR then signs a separate
-    exact-action authority grant and decision commitment. This function has no device
-    I/O and does not execute the requested action.
-    """
+                           ddcar_decision_private,decision_key_id,profile,
+                           physical_authority_revocations=None,state_lineage=None,
+                           principal='human:owner',issuer='ddc-physical-gate'):
+    """Build, seal and self-verify a canonical DDCAR decision receipt from signed v0.4 evidence."""
     from ddcar.crypto import public_from_private, sha256_bytes, sha256_digest
     from ddcar.model import authority_grant, sign_authority, make_receipt, seal_decision, verify_receipt
 
-    now_ms=decision['evaluated_ms']
-    ok,code=verify_authority(physical_authority_signed,physical_authority_trust,envelope=envelope,now_ms=now_ms)
+    if not verify(physical_decision_signed,physical_decision_trust):
+        raise ValueError('untrusted physical decision')
+    decision=physical_decision_signed.get('payload',{})
+    if decision.get('trust_profile')!='cryptographic-v0.4':
+        raise ValueError('physical decision is not proof-bound v0.4')
+    now_ms=decision.get('evaluated_ms')
+    if decision.get('authority_proof_digest')!=digest(physical_authority_signed):
+        raise ValueError('physical decision authority proof mismatch')
+    if decision.get('state_proof_digest')!=digest(state_signed):
+        raise ValueError('physical decision state proof mismatch')
+
+    ok,code=verify_authority(physical_authority_signed,physical_authority_trust,
+        envelope=envelope,now_ms=now_ms,revoked_grants=physical_authority_revocations)
     if not ok: raise ValueError('physical authority verification failed: '+str(code))
     ok,code=verify_state(state_signed,state_trust,snapshot=snapshot,now_ms=now_ms)
     if not ok: raise ValueError('physical state verification failed: '+str(code))
+    if state_lineage is not None:
+        ok,code=state_lineage.check(state_signed)
+        if not ok: raise ValueError('physical state lineage failed: '+str(code))
     if decision.get('action_digest')!=digest(envelope['action']): raise ValueError('decision action mismatch')
     if decision.get('snapshot_digest')!=digest(snapshot): raise ValueError('decision snapshot mismatch')
     if decision.get('profile_digest')!=digest(profile): raise ValueError('decision profile mismatch')
+    if decision.get('envelope_digest')!=digest(envelope): raise ValueError('decision envelope mismatch')
 
     if ddcar_trust.get('authority',{}).get(authority_key_id)!=public_from_private(ddcar_authority_private):
         raise ValueError('DDCAR authority signing key not trusted')
@@ -148,19 +150,18 @@ def build_decision_receipt(*,envelope,snapshot,decision,physical_authority_signe
                           envelope['nonce'],issued_at=r['issued_at'],agent=envelope['agent'],
                           action_digest=exact_digest)
     proof=sign_authority(grant,ddcar_authority_private,authority_key_id)
-
-    # Bind both independently verified Physical Gate trust objects as immutable evidence.
     r['evidence']=[
-      {'type':'physical-state-attestation',
-       'digest':sha256_bytes(canonical(state_signed)),
+      {'type':'physical-state-attestation','digest':sha256_bytes(canonical(state_signed)),
        'observed_at':iso_ms(state_signed['payload']['observed_ms']),
        'valid_until':iso_ms(state_signed['payload']['valid_until_ms']),
        'source':state_signed['payload']['source']},
-      {'type':'physical-authority-proof',
-       'digest':sha256_bytes(canonical(physical_authority_signed)),
+      {'type':'physical-authority-proof','digest':sha256_bytes(canonical(physical_authority_signed)),
        'observed_at':iso_ms(physical_authority_signed['payload']['issued_ms']),
        'valid_until':iso_ms(physical_authority_signed['payload']['expires_ms']),
-       'source':'physical-gate-authority'}
+       'source':'physical-gate-authority'},
+      {'type':'physical-gate-decision','digest':sha256_bytes(canonical(physical_decision_signed)),
+       'observed_at':iso_ms(decision['evaluated_ms']),'valid_until':iso_ms(decision['expires_ms']),
+       'source':'ddc-physical-gate'}
     ]
     receipt=make_receipt(receipt_id=r['receipt_id'],nonce=r['nonce'],agent=r['agent'],
         authority=r['authority'],authority_grant=grant,authority_proof=proof,
@@ -176,22 +177,22 @@ def build_decision_receipt(*,envelope,snapshot,decision,physical_authority_signe
     return receipt
 
 
-def bind_simulated_execution(receipt,*,envelope,physical_execution_signed,physical_execution_trust,
+def bind_simulated_execution(receipt,*,envelope,physical_decision_signed,physical_decision_trust,
+                             physical_execution_signed,physical_execution_trust,
                              ddcar_trust,ddcar_execution_private,execution_key_id,
                              executor_id='physical-gate-simulator'):
-    """Bind a verified simulation result as the DDCAR execution claim.
-
-    This does not represent real hardware execution. The Physical Gate execution
-    signature is verified first and its signed object is committed as outcome evidence.
-    """
+    """Bind a verified v0.4 simulation result as the separate DDCAR execution claim."""
     from ddcar.crypto import public_from_private, sha256_bytes
     from ddcar.model import bind_execution, verify_receipt
-    from .core import verify
 
+    if not verify(physical_decision_signed,physical_decision_trust):
+        raise ValueError('untrusted physical decision')
     if not verify(physical_execution_signed,physical_execution_trust):
         raise ValueError('untrusted physical execution claim')
+    d=physical_decision_signed.get('payload',{})
     p=physical_execution_signed.get('payload',{})
     if p.get('status')!='SIMULATED': raise ValueError('only simulated execution is supported')
+    if p.get('decision_digest')!=digest(d): raise ValueError('physical execution decision mismatch')
     if p.get('device')!=envelope.get('device') or p.get('nonce')!=envelope.get('nonce'):
         raise ValueError('physical execution binding mismatch')
     if p.get('action_digest')!=digest(envelope.get('action')):
@@ -206,7 +207,7 @@ def bind_simulated_execution(receipt,*,envelope,physical_execution_signed,physic
         parameters=exact['parameters'],
         outcome={'status':'SUCCEEDED','evidence_digest':sha256_bytes(canonical(physical_execution_signed)),
                  'reference':'simulation-only:physical-gate'},
-        executor={'id':executor_id,'kind':'simulator','version':'0.3'},
+        executor={'id':executor_id,'kind':'simulator','version':'0.4'},
         private_key=ddcar_execution_private,key_id=execution_key_id,
         observed_at=iso_ms(p['completed_ms']))
     errors=verify_receipt(final,trust=ddcar_trust,mode='historical',

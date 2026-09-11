@@ -2,7 +2,7 @@
 
 Independent, vendor-neutral pre-execution assurance for AI-to-physical-device commands.
 
-**Status:** v0.3 simulation-only research reference. No real-hardware transport is included or enabled.
+**Status:** v0.4 simulation-only research reference. No real-hardware transport is included or enabled.
 
 DDC Physical Gate evaluates whether an exact proposed physical action should be allowed to cross the hardware boundary given the current observed state, authority, device profile, deterministic physical constraints, uncertainty, sequence, and policy.
 
@@ -110,3 +110,12 @@ DDC Action Receipt v0.1 structural mapping is implemented, but its current core 
 v0.3 adds a shared deterministic conformance vector committed to both DDC Physical Gate and DDC Action Receipt. Physical Gate must emit the vector exactly; DDCAR independently constructs, signs, executes and verifies a receipt from the same vector. This makes cross-repository drift test-visible without copying verifier code.
 
 The multi-device lab simulator adds causal and sequence constraints across a robotic arm, liquid handler and reader. It blocks unavailable plates, reader conflicts, lid/door violations, excessive mixing and repeated same-well recovery after bubble detection. It remains simulation-only and does not implement any physical transport.
+
+
+## v0.4 trust-boundary hardening
+
+v0.4 binds the exact signed authority proof and signed device-state proof into the signed gate decision. The secure executor rejects proof substitution, legacy decisions without proof binding, changed state, changed action, replay and expired permits.
+
+Device-state attestations now include a device epoch and predecessor-state digest. An optional persistent monotonic lineage ledger rejects rollback, generation gaps, epoch changes and incorrect predecessors. Authority verification also accepts an explicit revoked-grant digest set and blocks revoked grants.
+
+These controls remain simulation-only. They do not enable ROS, serial, GPIO, device SDK or other hardware writes.
