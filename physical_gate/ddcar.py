@@ -25,7 +25,7 @@ def sha(obj):
 
 def action(envelope):
     a=envelope['action']
-    return {'tool':{'kind':'physical-gate','id':envelope['device'],'version':'0.3',
+    return {'tool':{'kind':'physical-gate','id':envelope['device'],'version':'0.2',
       'schema_digest':sha({'profile':envelope['profile_digest']})},
       'operation':a['operation'],'parameters':a['parameters']}
 
