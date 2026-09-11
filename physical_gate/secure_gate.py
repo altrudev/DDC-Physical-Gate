@@ -26,7 +26,7 @@ class SecureGate:
             if not ok: block(code)
         base['findings']=findings
         if any(f['disposition']=='BLOCK' for f in findings): base['disposition']='BLOCK'
-        base['trust_profile']='cryptographic-v0.2'
+        base['trust_profile']='cryptographic-v0.4'
         return base
 
 
