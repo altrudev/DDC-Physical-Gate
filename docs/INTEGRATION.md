@@ -2,14 +2,17 @@
 
 ## DDC Action Receipt
 
-The simulator emits a draft `ddcar.physical.v0.1-draft` profile containing:
-- exact envelope commitment;
-- signed gate decision;
-- signed simulated execution claim;
-- snapshot and profile commitments;
-- simulated outcome claim.
+Physical Gate now has an opt-in canonical DDCAR v0.1 bridge pinned to exact accepted source commit `d746e57b6f6a0c4ff6694a1a1ff6954e64f5ef39` (package version 0.1.2; v0.1 wire format unchanged).
 
-This is intentionally marked draft until it is mapped to and validated against the canonical DDC Action Receipt schema and verifier.
+The bridge:
+- verifies the Physical Gate's independently signed physical authority and state attestations first;
+- creates a separate DDCAR human-authority grant bound to the exact DDCAR action digest;
+- signs the DDCAR decision with an independently trusted decision key;
+- verifies a signed Physical Gate simulated execution before binding a separate DDCAR execution claim;
+- records simulation explicitly as `simulation-only:physical-gate`;
+- never treats DDCAR verification as proof that real hardware moved.
+
+DDCAR v0.1's reference scope language does not natively express Physical Gate's frame/workspace/speed/force policy fields. Those richer constraints remain enforced by Physical Gate and are bound through the exact action digest, profile/policy digest, and physical evidence. The canonical DDCAR scope is intentionally limited to `tool_id` + `operation` rather than silently extending the v0.1 verifier vocabulary.
 
 ## MHS / MCP
 
