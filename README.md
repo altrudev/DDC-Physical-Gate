@@ -2,7 +2,7 @@
 
 Independent, vendor-neutral pre-execution assurance for AI-to-physical-device commands.
 
-**Status:** v0.2 simulation-only research reference. No real-hardware transport is included or enabled.
+**Status:** v0.3 simulation-only research reference. No real-hardware transport is included or enabled.
 
 DDC Physical Gate evaluates whether an exact proposed physical action should be allowed to cross the hardware boundary given the current observed state, authority, device profile, deterministic physical constraints, uncertainty, sequence, and policy.
 
@@ -103,3 +103,10 @@ The secure executor independently revalidates both proofs before simulated dispa
 The repository also includes simulation-only normalizers for MCP-shaped and MHS-research-shaped requests. The MHS adapter is deliberately labeled as a research compatibility shape, not an official Anthropic schema.
 
 DDC Action Receipt v0.1 structural mapping is implemented, but its current core verifier does not yet define physical-device authority scopes. The repository reports this as an explicit interoperability limitation rather than claiming full verifier compatibility.
+
+
+## v0.3 conformance and multi-device simulation
+
+v0.3 adds a shared deterministic conformance vector committed to both DDC Physical Gate and DDC Action Receipt. Physical Gate must emit the vector exactly; DDCAR independently constructs, signs, executes and verifies a receipt from the same vector. This makes cross-repository drift test-visible without copying verifier code.
+
+The multi-device lab simulator adds causal and sequence constraints across a robotic arm, liquid handler and reader. It blocks unavailable plates, reader conflicts, lid/door violations, excessive mixing and repeated same-well recovery after bubble detection. It remains simulation-only and does not implement any physical transport.
