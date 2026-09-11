@@ -1,0 +1,24 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "$id":"https://github.com/altrudev/DDC-Physical-Gate/schemas/command-envelope.v0.2.schema.json",
+  "title":"DDC Physical Gate Command Envelope v0.2",
+  "type":"object",
+  "additionalProperties":true,
+  "required":["version","id","nonce","agent","device","issued_ms","expires_ms","generation","profile_digest","snapshot_digest","action","authority","consequence","reversible"],
+  "properties":{
+    "version":{"const":"ddc.physical-gate.v0.1"},
+    "id":{"type":"string","minLength":1},
+    "nonce":{"type":"string","minLength":16},
+    "agent":{"type":"string","minLength":1},
+    "device":{"type":"string","minLength":1},
+    "issued_ms":{"type":"integer","minimum":0},
+    "expires_ms":{"type":"integer","minimum":0},
+    "generation":{"type":"integer","minimum":0},
+    "profile_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "snapshot_digest":{"type":"string","pattern":"^[0-9a-f]{64}$"},
+    "action":{"type":"object","required":["operation","parameters"]},
+    "authority":{"type":"object"},
+    "consequence":{"type":"number","minimum":0},
+    "reversible":{"type":"boolean"}
+  }
+}
