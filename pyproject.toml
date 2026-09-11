@@ -3,8 +3,8 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "ddc-physical-gate"
-version = "0.2.0"
-description = "Simulation-only independent physical action assurance reference with cryptographic trust binding"
+version = "0.3.0"
+description = "Simulation-only independent physical action assurance reference with cryptographic trust binding and cross-repo conformance"
 requires-python = ">=3.10"
 dependencies = ["cryptography>=42"]
 [project.optional-dependencies]
