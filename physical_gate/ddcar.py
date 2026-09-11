@@ -1,8 +1,8 @@
 """Mapping to the public DDC Action Receipt v0.1 structure.
 
-The mapper is schema-shaped but physical authority scopes are not yet accepted by the
-current DDCAR v0.1 verifier's payment-oriented scope evaluator. This module never
-claims verifier success that has not occurred.
+Physical authority scopes are not yet accepted by the current DDCAR v0.1
+payment-oriented scope evaluator. Structural compatibility and verifier
+compatibility are therefore reported separately.
 """
 from datetime import datetime, timezone
 from .core import digest
@@ -30,7 +30,7 @@ def make_unsealed_receipt(*,envelope,decision,authority_signed,state_signed,issu
     risk={'class':'high' if envelope.get('consequence',0)>=3 else 'medium'}
     grant=authority_signed['payload']
     scope={'tool_id':envelope['device'],'operation':a['operation']}
-    return {'spec':SPEC,'version':'0.1','receipt_id':envelope['id'],'issued_at':iso_ms(issued),'expires_at':iso_ms(expiry),
+    receipt={'spec':SPEC,'version':'0.1','receipt_id':envelope['id'],'issued_at':iso_ms(issued),'expires_at':iso_ms(expiry),
       'nonce':envelope['nonce'],'agent':{'id':envelope['agent'],'kind':'agent','version':'unknown'},
       'authority':{'kind':'human','principal':grant['principal'],'basis':'signed physical authority grant','scope':scope},
       'authority_grant':None,'authority_proof':None,'requested_action':a,'requested_action_digest':sha(a),
@@ -39,5 +39,6 @@ def make_unsealed_receipt(*,envelope,decision,authority_signed,state_signed,issu
       'policy':{'id':'ddc-physical-gate','version':'0.2','digest':sha({'profile':envelope['profile_digest']})},
       'prerequisites':checks,'permissions':checks,'assurance':assurance,'anomalies':anomalies,'risk':risk,
       'decision':decision_name(decision['disposition']),'issuer':{'id':issuer,'kind':'assurance-gate','version':'0.2'},
-      'lineage':{'previous':[],'delegation_parent':None},'decision_proof':None,'execution':None,'execution_proof':None,
-      '_interop_status':'STRUCTURAL_MAPPING_ONLY_DDCAR_V0.1_SCOPE_EXTENSION_REQUIRED'}
+      'lineage':{'previous':[],'delegation_parent':None},'decision_proof':None,'execution':None,'execution_proof':None}
+    return {'receipt':receipt,'interop':{'ddcar_version':'0.1','structural_mapping':True,'core_verifier_physical_scope':False,
+      'reason':'DDCAR v0.1 scope evaluator does not yet define physical-device authority constraints'}}
