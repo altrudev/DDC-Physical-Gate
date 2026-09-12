@@ -119,3 +119,16 @@ v0.4 binds the exact signed authority proof and signed device-state proof into t
 Device-state attestations now include a device epoch and predecessor-state digest. An optional persistent monotonic lineage ledger rejects rollback, generation gaps, epoch changes and incorrect predecessors. Authority verification also accepts an explicit revoked-grant digest set and blocks revoked grants.
 
 These controls remain simulation-only. They do not enable ROS, serial, GPIO, device SDK or other hardware writes.
+
+
+## v0.4 MCP shadow mode
+
+The MCP shadow boundary accepts MCP-shaped tool calls and signed telemetry, normalizes them, evaluates them through the proof-bound v0.4 gate, and emits a signed decision plus DDCAR preview evidence.
+
+Shadow mode intentionally exposes no actuator transport:
+
+- `dispatch.available = false`
+- `dispatch.permitted = false`
+- `hardware_write_capability = false`
+
+Unknown tools, stale telemetry, invalid signatures, revoked authority, and other failed constraints are evaluated fail-closed. Even an `ALLOW` result remains observational only and cannot cross a hardware boundary.
