@@ -34,6 +34,8 @@ def route_commitment(
     action_digest,
     tool_contract_digest,
     entrypoint_digest,
+    closure_evidence_digest,
+    enforcement_digest,
     issued_ms,
     expires_ms,
     exclusive=True,
@@ -47,6 +49,8 @@ def route_commitment(
         "action_digest": action_digest,
         "tool_contract_digest": tool_contract_digest,
         "entrypoint_digest": entrypoint_digest,
+        "closure_evidence_digest": closure_evidence_digest,
+        "enforcement_digest": enforcement_digest,
         "issued_ms": issued_ms,
         "expires_ms": expires_ms,
         "exclusive": bool(exclusive),
@@ -67,6 +71,8 @@ def verify_route(
     expected_gate_id=None,
     expected_executor_id=None,
     expected_entrypoint_digest=None,
+    expected_closure_evidence_digest=None,
+    expected_enforcement_digest=None,
 ):
     if not verify(signed, trusted):
         return False, "ROUTE_SIGNATURE"
@@ -87,6 +93,14 @@ def verify_route(
         return False, "ROUTE_EXECUTOR"
     if expected_entrypoint_digest is not None and route.get("entrypoint_digest") != expected_entrypoint_digest:
         return False, "ROUTE_ENTRYPOINT"
+    if not isinstance(route.get("closure_evidence_digest"), str) or not route.get("closure_evidence_digest"):
+        return False, "ROUTE_CLOSURE_EVIDENCE"
+    if not isinstance(route.get("enforcement_digest"), str) or not route.get("enforcement_digest"):
+        return False, "ROUTE_ENFORCEMENT_EVIDENCE"
+    if expected_closure_evidence_digest is not None and route.get("closure_evidence_digest") != expected_closure_evidence_digest:
+        return False, "ROUTE_CLOSURE_EVIDENCE_CHANGED"
+    if expected_enforcement_digest is not None and route.get("enforcement_digest") != expected_enforcement_digest:
+        return False, "ROUTE_ENFORCEMENT_CHANGED"
     try:
         if route.get("issued_ms") > now_ms or route.get("expires_ms") <= now_ms:
             return False, "ROUTE_TIME"
