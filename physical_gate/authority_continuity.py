@@ -13,6 +13,7 @@ from .core import digest, sign, verify
 
 ROOT_AUTHORITY_VERSION = "ddc.physical-root-authority.v0.5"
 DELEGATION_VERSION = "ddc.physical-delegation.v0.5"
+SUPPORTED_BUDGETS = frozenset({"force_N", "speed_mm_s", "consequence"})
 
 
 def _num(value):
@@ -133,6 +134,31 @@ def _budgets_attenuate(child, parent):
     return True
 
 
+def _supported_budgets(value):
+    return isinstance(value or {}, dict) and set((value or {}).keys()).issubset(SUPPORTED_BUDGETS)
+
+
+def _leaf_budget_allows(leaf, envelope):
+    budgets = leaf.get("budgets") or {}
+    if not _supported_budgets(budgets):
+        return False, "DELEGATION_BUDGET_UNSUPPORTED"
+    action = envelope.get("action", {})
+    params = action.get("parameters", {}) if isinstance(action, dict) else {}
+    try:
+        if "force_N" in budgets:
+            if _num(params["force"]["value"]) > _num(budgets["force_N"]):
+                return False, "DELEGATION_BUDGET_FORCE"
+        if "speed_mm_s" in budgets:
+            if _num(params["speed"]["value"]) > _num(budgets["speed_mm_s"]):
+                return False, "DELEGATION_BUDGET_SPEED"
+        if "consequence" in budgets:
+            if _num(envelope.get("consequence")) > _num(budgets["consequence"]):
+                return False, "DELEGATION_BUDGET_CONSEQUENCE"
+    except (KeyError, TypeError, ValueError):
+        return False, "DELEGATION_BUDGET_VALUE"
+    return True, None
+
+
 def _bound_or_narrower(child, parent, field):
     parent_value = parent.get(field)
     child_value = child.get(field)
@@ -179,6 +205,8 @@ def verify_delegation_chain(
             return False, f"DELEGATION_PROFILE:{index}", None
         if not _subset(child.get("operations"), parent.get("operations")):
             return False, f"DELEGATION_OPERATIONS:{index}", None
+        if not _supported_budgets(parent.get("budgets")) or not _supported_budgets(child.get("budgets")):
+            return False, f"DELEGATION_BUDGET_UNSUPPORTED:{index}", None
         if not _budgets_attenuate(child.get("budgets"), parent.get("budgets", {})):
             return False, f"DELEGATION_BUDGET:{index}", None
         for field in ("action_digest", "tool_contract_digest", "route_digest"):
@@ -217,6 +245,9 @@ def verify_delegation_chain(
         return False, "DELEGATION_LEAF_PROFILE", None
     if leaf.get("action_digest") is not None and leaf.get("action_digest") != digest(action):
         return False, "DELEGATION_LEAF_ACTION", None
+    budget_ok, budget_code = _leaf_budget_allows(leaf, envelope)
+    if not budget_ok:
+        return False, budget_code, None
     if edges and expected_tool_contract_digest is not None:
         if leaf.get("tool_contract_digest") != expected_tool_contract_digest:
             return False, "DELEGATION_TOOL_CONTRACT", None
