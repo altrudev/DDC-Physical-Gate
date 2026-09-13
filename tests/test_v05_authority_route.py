@@ -231,3 +231,16 @@ def test_route_binding_rejects_tool_contract_drift():
     )
     assert not ok
     assert code == "ROUTE_TOOL_CONTRACT"
+
+
+def test_tool_contract_behavior_profile_expires():
+    contract = _contract()
+    contract["behavior_valid_until_ms"] = NOW
+    from physical_gate.contracts_v05 import tool_contract_digest
+
+    try:
+        tool_contract_digest(contract, NOW)
+    except ValueError as exc:
+        assert "tool-behavior-stale" in str(exc)
+        return
+    raise AssertionError("expected stale behavior profile to fail closed")
