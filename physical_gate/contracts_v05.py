@@ -7,7 +7,18 @@ TOOL_CONTRACT_VERSION = "ddc.physical-tool-contract.v0.5"
 ROUTE_VERSION = "ddc.physical-route.v0.5"
 
 
-def tool_contract(*, tool_id, version, operations, parameter_schema, transport, implementation_digest):
+def tool_contract(
+    *,
+    tool_id,
+    version,
+    operations,
+    parameter_schema,
+    transport,
+    implementation_digest,
+    behavior_profile_digest,
+    behavior_observed_ms,
+    behavior_valid_until_ms,
+):
     return {
         "version": TOOL_CONTRACT_VERSION,
         "tool_id": tool_id,
@@ -16,6 +27,9 @@ def tool_contract(*, tool_id, version, operations, parameter_schema, transport, 
         "parameter_schema": parameter_schema,
         "transport": transport,
         "implementation_digest": implementation_digest,
+        "behavior_profile_digest": behavior_profile_digest,
+        "behavior_observed_ms": behavior_observed_ms,
+        "behavior_valid_until_ms": behavior_valid_until_ms,
     }
 
 
@@ -23,6 +37,25 @@ def tool_contract_digest(contract):
     if not isinstance(contract, dict) or contract.get("version") != TOOL_CONTRACT_VERSION:
         raise ValueError("invalid-tool-contract")
     return digest(contract)
+
+
+def verify_tool_contract(contract, now_ms):
+    try:
+        contract_digest = tool_contract_digest(contract)
+    except (TypeError, ValueError):
+        return False, "TOOL_CONTRACT_INVALID", None
+    if not isinstance(contract.get("implementation_digest"), str) or not contract.get("implementation_digest"):
+        return False, "TOOL_IMPLEMENTATION_IDENTITY", None
+    if not isinstance(contract.get("behavior_profile_digest"), str) or not contract.get("behavior_profile_digest"):
+        return False, "TOOL_BEHAVIOR_PROFILE", None
+    try:
+        observed = contract.get("behavior_observed_ms")
+        valid_until = contract.get("behavior_valid_until_ms")
+        if observed > now_ms or valid_until <= now_ms or valid_until <= observed:
+            return False, "TOOL_BEHAVIOR_STALE", None
+    except TypeError:
+        return False, "TOOL_BEHAVIOR_TIME", None
+    return True, None, contract_digest
 
 
 def route_commitment(
