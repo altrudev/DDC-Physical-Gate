@@ -152,8 +152,11 @@ def verify_delegation_chain(
 
     leaf = parent
     executing_agent = envelope.get("agent")
-    if edges and leaf.get("delegate") != executing_agent:
-        return False, "DELEGATION_LEAF_AGENT", None
+    if edges:
+        if leaf.get("delegate") != executing_agent:
+            return False, "DELEGATION_LEAF_AGENT", None
+    elif leaf.get("agent") != executing_agent:
+        return False, "DELEGATION_ROOT_AGENT", None
 
     action = envelope.get("action", {})
     operation = action.get("operation")
@@ -165,10 +168,10 @@ def verify_delegation_chain(
         return False, "DELEGATION_LEAF_PROFILE", None
     if leaf.get("action_digest") is not None and leaf.get("action_digest") != digest(action):
         return False, "DELEGATION_LEAF_ACTION", None
-    if expected_tool_contract_digest is not None:
+    if edges and expected_tool_contract_digest is not None:
         if leaf.get("tool_contract_digest") != expected_tool_contract_digest:
             return False, "DELEGATION_TOOL_CONTRACT", None
-    if expected_route_digest is not None:
+    if edges and expected_route_digest is not None:
         if leaf.get("route_digest") != expected_route_digest:
             return False, "DELEGATION_ROUTE", None
 
