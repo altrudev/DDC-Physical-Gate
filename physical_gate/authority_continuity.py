@@ -11,6 +11,7 @@ from typing import Iterable
 
 from .core import digest, sign, verify
 
+ROOT_AUTHORITY_VERSION = "ddc.physical-root-authority.v0.5"
 DELEGATION_VERSION = "ddc.physical-delegation.v0.5"
 
 
@@ -24,6 +25,46 @@ def _num(value):
     if not number.is_finite():
         raise ValueError("nonfinite-number")
     return number
+
+
+def root_authority_grant(
+    *,
+    principal,
+    agent,
+    device,
+    operations,
+    issued_ms,
+    expires_ms,
+    nonce,
+    profile_digest,
+    action_digest=None,
+    tool_contract_digest=None,
+    route_digest=None,
+    budgets=None,
+):
+    payload = {
+        "version": ROOT_AUTHORITY_VERSION,
+        "principal": principal,
+        "agent": agent,
+        "device": device,
+        "operations": sorted(set(operations)),
+        "issued_ms": issued_ms,
+        "expires_ms": expires_ms,
+        "nonce": nonce,
+        "profile_digest": profile_digest,
+        "budgets": dict(budgets or {}),
+    }
+    if action_digest is not None:
+        payload["action_digest"] = action_digest
+    if tool_contract_digest is not None:
+        payload["tool_contract_digest"] = tool_contract_digest
+    if route_digest is not None:
+        payload["route_digest"] = route_digest
+    return payload
+
+
+def sign_root_authority(private_key, **kwargs):
+    return sign(private_key, root_authority_grant(**kwargs))
 
 
 def delegation_grant(
@@ -79,10 +120,13 @@ def _budgets_attenuate(child, parent):
     if not isinstance(child, dict) or not isinstance(parent, dict):
         return False
     for key, value in child.items():
-        if key not in parent:
-            return False
         try:
-            if _num(value) < 0 or _num(value) > _num(parent[key]):
+            child_value = _num(value)
+            if child_value < 0:
+                return False
+            # Missing parent budget means previously unbounded. Introducing a
+            # finite non-negative child budget is attenuation, not expansion.
+            if key in parent and child_value > _num(parent[key]):
                 return False
         except ValueError:
             return False
@@ -105,6 +149,7 @@ def verify_delegation_chain(
     revoked=None,
     expected_tool_contract_digest=None,
     expected_route_digest=None,
+    principal_keys=None,
 ):
     """Verify signatures, linkage, freshness and monotonic attenuation."""
     revoked = revoked if revoked is not None else set()
@@ -116,6 +161,10 @@ def verify_delegation_chain(
         if not verify(signed, trusted):
             return False, f"DELEGATION_SIGNATURE:{index}", None
         child = signed.get("payload", {})
+        if principal_keys is not None:
+            allowed_keys = set(principal_keys.get(child.get("principal"), []))
+            if signed.get("key_id") not in allowed_keys:
+                return False, f"DELEGATION_SIGNER_PRINCIPAL:{index}", None
         if child.get("version") != DELEGATION_VERSION:
             return False, f"DELEGATION_VERSION:{index}", None
         if digest(child) in revoked:
