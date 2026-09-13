@@ -127,7 +127,15 @@ class SecureGateV05(SecureGate):
 
         route_ok = False
         route_binding = None
-        if contract_digest is not None:
+        if self.closure_evidence_digest is None:
+            block("ROUTE_CLOSURE_UNPINNED")
+        if self.enforcement_digest is None:
+            block("ROUTE_ENFORCEMENT_UNPINNED")
+        if (
+            contract_digest is not None
+            and self.closure_evidence_digest is not None
+            and self.enforcement_digest is not None
+        ):
             route_ok, code = verify_route(
                 route_proof or {},
                 self.route_trust,
