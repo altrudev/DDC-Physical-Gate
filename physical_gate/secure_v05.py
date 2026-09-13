@@ -110,9 +110,18 @@ class SecureGateV05(SecureGate):
 
         try:
             contract_digest = tool_contract_digest(tool_contract, now_ms)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
             contract_digest = None
-            block("TOOL_CONTRACT_INVALID")
+            reason = str(exc)
+            if reason == "tool-behavior-stale":
+                block("TOOL_BEHAVIOR_STALE")
+            elif reason in ("tool-behavior-profile", "tool-behavior-time"):
+                block("TOOL_BEHAVIOR_EVIDENCE")
+            else:
+                block("TOOL_CONTRACT_INVALID")
+
+        if not self.principal_keys:
+            block("PRINCIPAL_KEY_BINDING_UNCONFIGURED")
 
         ok, code = _verify_root_authority(
             root_authority_proof or {},
