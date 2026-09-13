@@ -1,0 +1,262 @@
+"""Authority continuity and monotonic delegation checks for Physical Gate v0.5 candidate.
+
+This module is additive. Existing v0.4 trust objects remain supported by the
+existing gate; v0.5 callers can supply a signed delegation chain when authority
+passes through multiple actors before execution.
+"""
+from __future__ import annotations
+
+from decimal import Decimal, InvalidOperation
+from typing import Iterable
+
+from .core import digest, sign, verify
+
+ROOT_AUTHORITY_VERSION = "ddc.physical-root-authority.v0.5"
+DELEGATION_VERSION = "ddc.physical-delegation.v0.5"
+SUPPORTED_BUDGETS = frozenset({"force_N", "speed_mm_s", "consequence"})
+
+
+def _num(value):
+    if isinstance(value, bool):
+        raise ValueError("boolean-is-not-number")
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        raise ValueError("invalid-number")
+    if not number.is_finite():
+        raise ValueError("nonfinite-number")
+    return number
+
+
+def root_authority_grant(
+    *,
+    principal,
+    agent,
+    device,
+    operations,
+    issued_ms,
+    expires_ms,
+    nonce,
+    profile_digest,
+    action_digest=None,
+    tool_contract_digest=None,
+    route_digest=None,
+    budgets=None,
+):
+    payload = {
+        "version": ROOT_AUTHORITY_VERSION,
+        "principal": principal,
+        "agent": agent,
+        "device": device,
+        "operations": sorted(set(operations)),
+        "issued_ms": issued_ms,
+        "expires_ms": expires_ms,
+        "nonce": nonce,
+        "profile_digest": profile_digest,
+        "budgets": dict(budgets or {}),
+    }
+    if action_digest is not None:
+        payload["action_digest"] = action_digest
+    if tool_contract_digest is not None:
+        payload["tool_contract_digest"] = tool_contract_digest
+    if route_digest is not None:
+        payload["route_digest"] = route_digest
+    return payload
+
+
+def sign_root_authority(private_key, **kwargs):
+    return sign(private_key, root_authority_grant(**kwargs))
+
+
+def delegation_grant(
+    *,
+    parent_digest,
+    principal,
+    delegate,
+    device,
+    operations,
+    issued_ms,
+    expires_ms,
+    nonce,
+    profile_digest,
+    action_digest=None,
+    tool_contract_digest=None,
+    route_digest=None,
+    budgets=None,
+):
+    """Build one attenuating delegation edge."""
+    payload = {
+        "version": DELEGATION_VERSION,
+        "parent_digest": parent_digest,
+        "principal": principal,
+        "delegate": delegate,
+        "device": device,
+        "operations": sorted(set(operations)),
+        "issued_ms": issued_ms,
+        "expires_ms": expires_ms,
+        "nonce": nonce,
+        "profile_digest": profile_digest,
+        "budgets": dict(budgets or {}),
+    }
+    if action_digest is not None:
+        payload["action_digest"] = action_digest
+    if tool_contract_digest is not None:
+        payload["tool_contract_digest"] = tool_contract_digest
+    if route_digest is not None:
+        payload["route_digest"] = route_digest
+    return payload
+
+
+def sign_delegation(private_key, **kwargs):
+    return sign(private_key, delegation_grant(**kwargs))
+
+
+def _subset(child, parent):
+    return set(child or []).issubset(set(parent or []))
+
+
+def _budgets_attenuate(child, parent):
+    child = child or {}
+    parent = parent or {}
+    if not isinstance(child, dict) or not isinstance(parent, dict):
+        return False
+    for key, value in child.items():
+        try:
+            child_value = _num(value)
+            if child_value < 0:
+                return False
+            # Missing parent budget means previously unbounded. Introducing a
+            # finite non-negative child budget is attenuation, not expansion.
+            if key in parent and child_value > _num(parent[key]):
+                return False
+        except ValueError:
+            return False
+    return True
+
+
+def _supported_budgets(value):
+    return isinstance(value or {}, dict) and set((value or {}).keys()).issubset(SUPPORTED_BUDGETS)
+
+
+def _leaf_budget_allows(leaf, envelope):
+    budgets = leaf.get("budgets") or {}
+    if not _supported_budgets(budgets):
+        return False, "DELEGATION_BUDGET_UNSUPPORTED"
+    action = envelope.get("action", {})
+    params = action.get("parameters", {}) if isinstance(action, dict) else {}
+    try:
+        if "force_N" in budgets:
+            if _num(params["force"]["value"]) > _num(budgets["force_N"]):
+                return False, "DELEGATION_BUDGET_FORCE"
+        if "speed_mm_s" in budgets:
+            if _num(params["speed"]["value"]) > _num(budgets["speed_mm_s"]):
+                return False, "DELEGATION_BUDGET_SPEED"
+        if "consequence" in budgets:
+            if _num(envelope.get("consequence")) > _num(budgets["consequence"]):
+                return False, "DELEGATION_BUDGET_CONSEQUENCE"
+    except (KeyError, TypeError, ValueError):
+        return False, "DELEGATION_BUDGET_VALUE"
+    return True, None
+
+
+def _bound_or_narrower(child, parent, field):
+    parent_value = parent.get(field)
+    child_value = child.get(field)
+    return parent_value is None or child_value == parent_value
+
+
+def verify_delegation_chain(
+    chain: Iterable[dict],
+    trusted,
+    *,
+    root_authority,
+    envelope,
+    now_ms,
+    revoked=None,
+    expected_tool_contract_digest=None,
+    expected_route_digest=None,
+    principal_keys=None,
+):
+    """Verify signatures, linkage, freshness and monotonic attenuation."""
+    revoked = revoked if revoked is not None else set()
+    parent = dict(root_authority or {})
+    parent_digest = digest(parent)
+    edges = list(chain or [])
+
+    for index, signed in enumerate(edges):
+        if not verify(signed, trusted):
+            return False, f"DELEGATION_SIGNATURE:{index}", None
+        child = signed.get("payload", {})
+        if principal_keys is not None:
+            allowed_keys = set(principal_keys.get(child.get("principal"), []))
+            if signed.get("key_id") not in allowed_keys:
+                return False, f"DELEGATION_SIGNER_PRINCIPAL:{index}", None
+        if child.get("version") != DELEGATION_VERSION:
+            return False, f"DELEGATION_VERSION:{index}", None
+        if digest(child) in revoked:
+            return False, f"DELEGATION_REVOKED:{index}", None
+        if child.get("parent_digest") != parent_digest:
+            return False, f"DELEGATION_PARENT:{index}", None
+        if child.get("principal") != parent.get("agent", parent.get("delegate")):
+            return False, f"DELEGATION_PRINCIPAL:{index}", None
+        if child.get("device") != parent.get("device"):
+            return False, f"DELEGATION_DEVICE:{index}", None
+        if child.get("profile_digest") != parent.get("profile_digest"):
+            return False, f"DELEGATION_PROFILE:{index}", None
+        if not _subset(child.get("operations"), parent.get("operations")):
+            return False, f"DELEGATION_OPERATIONS:{index}", None
+        if not _supported_budgets(parent.get("budgets")) or not _supported_budgets(child.get("budgets")):
+            return False, f"DELEGATION_BUDGET_UNSUPPORTED:{index}", None
+        if not _budgets_attenuate(child.get("budgets"), parent.get("budgets", {})):
+            return False, f"DELEGATION_BUDGET:{index}", None
+        for field in ("action_digest", "tool_contract_digest", "route_digest"):
+            if not _bound_or_narrower(child, parent, field):
+                return False, f"DELEGATION_{field.upper()}:{index}", None
+        try:
+            child_issued = _num(child.get("issued_ms"))
+            child_expires = _num(child.get("expires_ms"))
+            parent_issued = _num(parent.get("issued_ms"))
+            parent_expires = _num(parent.get("expires_ms"))
+            if child_issued < parent_issued or child_expires > parent_expires:
+                return False, f"DELEGATION_TIME_ATTENUATION:{index}", None
+            if child_issued > _num(now_ms) or child_expires <= _num(now_ms):
+                return False, f"DELEGATION_TIME:{index}", None
+        except ValueError:
+            return False, f"DELEGATION_TIME:{index}", None
+
+        parent = child
+        parent_digest = digest(child)
+
+    leaf = parent
+    executing_agent = envelope.get("agent")
+    if edges:
+        if leaf.get("delegate") != executing_agent:
+            return False, "DELEGATION_LEAF_AGENT", None
+    elif leaf.get("agent") != executing_agent:
+        return False, "DELEGATION_ROOT_AGENT", None
+
+    action = envelope.get("action", {})
+    operation = action.get("operation")
+    if operation not in leaf.get("operations", []):
+        return False, "DELEGATION_LEAF_OPERATION", None
+    if leaf.get("device") != envelope.get("device"):
+        return False, "DELEGATION_LEAF_DEVICE", None
+    if leaf.get("profile_digest") != envelope.get("profile_digest"):
+        return False, "DELEGATION_LEAF_PROFILE", None
+    if leaf.get("action_digest") is not None and leaf.get("action_digest") != digest(action):
+        return False, "DELEGATION_LEAF_ACTION", None
+    budget_ok, budget_code = _leaf_budget_allows(leaf, envelope)
+    if not budget_ok:
+        return False, budget_code, None
+    if edges and expected_tool_contract_digest is not None:
+        if leaf.get("tool_contract_digest") != expected_tool_contract_digest:
+            return False, "DELEGATION_TOOL_CONTRACT", None
+    if edges and expected_route_digest is not None:
+        if leaf.get("route_digest") != expected_route_digest:
+            return False, "DELEGATION_ROUTE", None
+
+    return True, None, {
+        "leaf_digest": parent_digest,
+        "depth": len(edges),
+        "leaf": leaf,
+    }
