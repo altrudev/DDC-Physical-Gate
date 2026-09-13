@@ -33,9 +33,20 @@ def tool_contract(
     }
 
 
-def tool_contract_digest(contract):
+def tool_contract_digest(contract, now_ms=None):
     if not isinstance(contract, dict) or contract.get("version") != TOOL_CONTRACT_VERSION:
         raise ValueError("invalid-tool-contract")
+    if now_ms is not None:
+        if not isinstance(contract.get("behavior_profile_digest"), str) or not contract.get("behavior_profile_digest"):
+            raise ValueError("tool-behavior-profile")
+        observed=contract.get("behavior_observed_ms")
+        valid_until=contract.get("behavior_valid_until_ms")
+        if not isinstance(observed,(int,float)) or isinstance(observed,bool):
+            raise ValueError("tool-behavior-time")
+        if not isinstance(valid_until,(int,float)) or isinstance(valid_until,bool):
+            raise ValueError("tool-behavior-time")
+        if observed > now_ms or valid_until <= now_ms or valid_until <= observed:
+            raise ValueError("tool-behavior-stale")
     return digest(contract)
 
 
