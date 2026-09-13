@@ -4,7 +4,7 @@ This is an additive profile. It does not alter the stable v0.4 classes.
 """
 from __future__ import annotations
 
-from .authority_continuity import verify_delegation_chain
+from .authority_continuity import ROOT_AUTHORITY_VERSION, verify_delegation_chain
 from .contracts_v05 import route_digest, tool_contract_digest, verify_route
 from .core import digest, sign, verify
 from .secure_gate import SecureGate
@@ -15,12 +15,24 @@ from .trust import AUTHORITY_VERSION, verify_state
 TRUST_PROFILE = "cryptographic-v0.5"
 
 
-def _verify_root_authority(signed, trusted, *, envelope, now_ms, revoked=None):
+def _verify_root_authority(
+    signed,
+    trusted,
+    *,
+    envelope,
+    now_ms,
+    revoked=None,
+    principal_keys=None,
+):
     if not verify(signed, trusted):
         return False, "ROOT_AUTHORITY_SIGNATURE"
     grant = signed.get("payload", {})
-    if grant.get("version") != AUTHORITY_VERSION:
+    if grant.get("version") not in (AUTHORITY_VERSION, ROOT_AUTHORITY_VERSION):
         return False, "ROOT_AUTHORITY_VERSION"
+    if principal_keys is not None:
+        allowed_keys = set(principal_keys.get(grant.get("principal"), []))
+        if signed.get("key_id") not in allowed_keys:
+            return False, "ROOT_AUTHORITY_SIGNER_PRINCIPAL"
     if revoked is not None and digest(grant) in revoked:
         return False, "ROOT_AUTHORITY_REVOKED"
     if grant.get("device") != envelope.get("device"):
@@ -56,6 +68,7 @@ class SecureGateV05(SecureGate):
         entrypoint_digest=None,
         closure_evidence_digest=None,
         enforcement_digest=None,
+        principal_keys=None,
     ):
         super().__init__(
             profile=profile,
@@ -73,6 +86,7 @@ class SecureGateV05(SecureGate):
         self.entrypoint_digest = entrypoint_digest
         self.closure_evidence_digest = closure_evidence_digest
         self.enforcement_digest = enforcement_digest
+        self.principal_keys = principal_keys
 
     def evaluate_v05(
         self,
@@ -106,6 +120,7 @@ class SecureGateV05(SecureGate):
             envelope=envelope,
             now_ms=now_ms,
             revoked=self.authority_revocations,
+            principal_keys=self.principal_keys,
         )
         if not ok:
             block(code)
@@ -140,6 +155,7 @@ class SecureGateV05(SecureGate):
                 revoked=self.delegation_revocations,
                 expected_tool_contract_digest=contract_digest,
                 expected_route_digest=route_binding,
+                principal_keys=self.principal_keys,
             )
             if not ok:
                 block(code)
@@ -237,6 +253,7 @@ class SecureExecutorV05(SecureExecutor):
         entrypoint_digest=None,
         closure_evidence_digest=None,
         enforcement_digest=None,
+        principal_keys=None,
     ):
         super().__init__(
             simulator,
@@ -260,6 +277,7 @@ class SecureExecutorV05(SecureExecutor):
             entrypoint_digest=entrypoint_digest,
             closure_evidence_digest=closure_evidence_digest,
             enforcement_digest=enforcement_digest,
+            principal_keys=principal_keys,
         )
 
     def dispatch_secure_v05(
