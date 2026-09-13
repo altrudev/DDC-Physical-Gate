@@ -54,6 +54,8 @@ class SecureGateV05(SecureGate):
         gate_id="physical-gate",
         executor_id="physical-executor",
         entrypoint_digest=None,
+        closure_evidence_digest=None,
+        enforcement_digest=None,
     ):
         super().__init__(
             profile=profile,
@@ -69,6 +71,8 @@ class SecureGateV05(SecureGate):
         self.gate_id = gate_id
         self.executor_id = executor_id
         self.entrypoint_digest = entrypoint_digest
+        self.closure_evidence_digest = closure_evidence_digest
+        self.enforcement_digest = enforcement_digest
 
     def evaluate_v05(
         self,
@@ -118,6 +122,8 @@ class SecureGateV05(SecureGate):
                 expected_gate_id=self.gate_id,
                 expected_executor_id=self.executor_id,
                 expected_entrypoint_digest=self.entrypoint_digest,
+                expected_closure_evidence_digest=self.closure_evidence_digest,
+                expected_enforcement_digest=self.enforcement_digest,
             )
             if not route_ok:
                 block(code)
@@ -229,6 +235,8 @@ class SecureExecutorV05(SecureExecutor):
         gate_id="physical-gate",
         executor_id="physical-executor",
         entrypoint_digest=None,
+        closure_evidence_digest=None,
+        enforcement_digest=None,
     ):
         super().__init__(
             simulator,
@@ -250,6 +258,8 @@ class SecureExecutorV05(SecureExecutor):
             gate_id=gate_id,
             executor_id=executor_id,
             entrypoint_digest=entrypoint_digest,
+            closure_evidence_digest=closure_evidence_digest,
+            enforcement_digest=enforcement_digest,
         )
 
     def dispatch_secure_v05(
