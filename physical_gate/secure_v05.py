@@ -5,7 +5,7 @@ This is an additive profile. It does not alter the stable v0.4 classes.
 from __future__ import annotations
 
 from .authority_continuity import ROOT_AUTHORITY_VERSION, verify_delegation_chain
-from .contracts_v05 import route_digest, tool_contract_digest, verify_route
+from .contracts_v05 import route_digest, tool_contract_digest, verify_route, verify_tool_contract
 from .core import digest, sign, verify
 from .secure_gate import SecureGate
 from .secure_runtime import SecureExecutor
