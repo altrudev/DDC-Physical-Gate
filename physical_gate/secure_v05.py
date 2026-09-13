@@ -109,7 +109,7 @@ class SecureGateV05(SecureGate):
             findings.append({"code": code, "disposition": "BLOCK"})
 
         try:
-            contract_digest = tool_contract_digest(tool_contract)
+            contract_digest = tool_contract_digest(tool_contract, now_ms)
         except (TypeError, ValueError):
             contract_digest = None
             block("TOOL_CONTRACT_INVALID")
