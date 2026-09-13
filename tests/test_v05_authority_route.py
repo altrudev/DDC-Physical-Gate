@@ -83,7 +83,7 @@ def test_monotonic_delegation_binds_principal_tool_route_and_budget():
         nonce=str(uuid.uuid4()),
         profile_digest=envelope["profile_digest"],
         action_digest=digest(envelope["action"]),
-        budgets={"calls": 2, "force_N": 10},
+        budgets={"force_N": 10, "speed_mm_s": 40},
     )
     child = sign_delegation(
         child_key,
@@ -99,7 +99,7 @@ def test_monotonic_delegation_binds_principal_tool_route_and_budget():
         action_digest=digest(envelope["action"]),
         tool_contract_digest=contract_digest,
         route_digest=route_binding,
-        budgets={"calls": 1, "force_N": 5},
+        budgets={"force_N": 5, "speed_mm_s": 20},
     )
 
     ok, code, info = verify_delegation_chain(
@@ -134,7 +134,7 @@ def test_delegation_cannot_expand_operations_or_budget():
         expires_ms=NOW + 800,
         nonce=str(uuid.uuid4()),
         profile_digest=envelope["profile_digest"],
-        budgets={"calls": 1},
+        budgets={"force_N": 5},
     )
     child = sign_delegation(
         child_key,
@@ -147,7 +147,7 @@ def test_delegation_cannot_expand_operations_or_budget():
         expires_ms=NOW + 400,
         nonce=str(uuid.uuid4()),
         profile_digest=envelope["profile_digest"],
-        budgets={"calls": 2},
+        budgets={"force_N": 6},
     )
     ok, code, _ = verify_delegation_chain(
         [child],
