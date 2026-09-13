@@ -40,6 +40,9 @@ def _contract():
         parameter_schema={"move": ["target", "speed", "force"]},
         transport="simulated",
         implementation_digest="sha256:" + "1" * 64,
+        behavior_profile_digest="sha256:" + "5" * 64,
+        behavior_observed_ms=NOW - 100,
+        behavior_valid_until_ms=NOW + 500,
     )
 
 
